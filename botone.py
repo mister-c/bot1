@@ -15,8 +15,10 @@ slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'));
 botone_id = None;
 todo_list = list();
 topp_todo_list = list();
+distract_list = list();
 
-active_todo = 'No active todo found';
+# active_todo = 'No active todo found';
+active_todo = None;
 
 RTM_READ_DELAY = 1;
 
@@ -28,6 +30,8 @@ READ_ALL_TODO_COMMAND = "what to do";
 READ_ACTIVE_TODO_COMMAND = "what am i doing";
 DONE_COMMAND = "done";
 NEW_TODO_COMMAND = "new todo";
+DISTRACT_COMMAND = "distraction";
+DISTRACT_DONE_COMMAND = "distraction done";
 
 # REGEX
 MENTION_REGEX = "^<@(|[WU].+?)>(.*)"
@@ -35,6 +39,7 @@ MENTION_REGEX = "^<@(|[WU].+?)>(.*)"
 # Filename
 TODOFILENAME = 'todo.txt';
 DONEFILENAME = 'done.txt';
+DISTRACTFILENAME = 'distract.txt';
 
 # Misc Globals
 MAX_IMAGE_ID_NO = 9999999999;
@@ -89,6 +94,7 @@ def handle_command(command, channel):
         global active_todo;
         global todo_list;
         global topp_todo_list;
+        global distract_list;
         
 	default_response  = "Not a valid command.";
 
@@ -109,8 +115,26 @@ def handle_command(command, channel):
                                 );
                                 done_file.close();
                         active_todo = None;
+                        save_todo();
                 else:
                         response = 'Hmm... There is no active task';
+        elif command.startswith(DISTRACT_DONE_COMMAND):
+                filename = DISTRACTFILENAME;
+                distract_index = int(command.replace(DISTRACT_DONE_COMMAND, '', 1));
+                
+                if(len(distract_list) > 0 and distract_index < len(distract_list)):
+                        response = 'Glad you got that out of the way...';
+                        with open(filename, 'a') as distract_file:
+                                fstr = "%a, %d %b %Y %H:%M:%S";
+                                gmt = time.localtime();
+                                time_str = time.strftime(fstr, gmt);
+                                distract_file.write(time_str + ' ' + \
+                                                distract_list[distract_index] + '\n'
+                                );
+                                distract_file.close();
+                        del distract_list[distract_index];
+                else:
+                        response = 'Hmm... There is no distractions';
         elif command.startswith(SET_TODO_COMMAND):
                 response = "I changed priority for you.";
                 todo_choice = command;
@@ -184,6 +208,14 @@ def handle_command(command, channel):
                                    "to be working on:" + '\n';
                         response = response + '>a. ' + \
                                    active_todo + '\n';
+
+                if(len(distract_list) > 0):
+                        response = response + \
+                                   "Look who's getting distracted:" + '\n';
+                for index, distract_item in enumerate(distract_list):
+                        response = response + '>d' + \
+                                   str(index) + '. ' + \
+                                   distract_item + '\n';
         elif command.startswith(READ_ACTIVE_TODO_COMMAND):
                 response = read_active_todo();
         elif command.startswith(NEW_TODO_COMMAND):
@@ -197,6 +229,13 @@ def handle_command(command, channel):
                         save_todo();
                 else:
                         response = "Empty todo item?";
+        elif command.startswith(DISTRACT_COMMAND):
+                response = "Added. Stop getting distracted...";
+                distract_item = command.replace(DISTRACT_COMMAND, '', 1);
+                if(len(distract_item) > 0):
+                        distract_list.append(distract_item);
+                else:
+                        response = "Empty distraction";
 	slack_client.api_call(
 		"chat.postMessage",
 		channel=channel,
@@ -220,7 +259,7 @@ def read_active_todo():
                 response = response + topp_todo_list[0] + '\n';
         elif(len(todo_list) > 0):
                 response = response + "The task on deck is: ";
-                response = response + topp_list[0] + '\n';
+                response = response + todo_list[0] + '\n';
 
         return response;
 
