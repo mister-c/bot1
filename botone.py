@@ -46,6 +46,7 @@ MAX_IMAGE_ID_NO = 9999999999;
 
 #ACTIVE_CHANNEL = os.environ.get('PROD_CHAN');
 ACTIVE_CHANNEL = os.environ.get('QA_CHAN');
+ARTEMIS_DM_CHANNEL = os.environ.get('ARTEMIS_CHAN');
 
 
 # Define remiders
@@ -53,15 +54,15 @@ ACTIVE_CHANNEL = os.environ.get('QA_CHAN');
 def sched_reminder(message, img_tag, img_title):
         channel = ACTIVE_CHANNEL;
         default_response = "Undefined reminder";
-        if message:
+        if (message):
                 response = message;
         
         print("sched_reminder invoked!");
 
-def parse_human_message(message, user):
+def parse_human_message(message, user, channel):
         print("its a human message: " + message);
         print("message is from: " + user);
-
+        print("message is from chan: " + channel);
         
 def parse_bot_commands(slack_events):
 	"""
@@ -72,11 +73,16 @@ def parse_bot_commands(slack_events):
 	for event in slack_events:
 		if event["type"] == "message" and not "subtype" in event:
 			user_id, message = parse_direct_mention(event["text"]);
+                        user_id, message = parse_private_message(event["channel"], event["text"]);
 			if user_id == botone_id:
 				return message, event["channel"];
                         elif event['user'] != botone_id:
-                                parse_human_message(event["text"], event["user"]);
+                                parse_human_message(event["text"], event["user"], event["channel"]);
 	return None, None;
+
+def parse_private_message(channel, message_text):
+        if(channel == ARTEMIS_DM_CHANNEL):
+                return botone_id, message_text;
 
 def parse_direct_mention(message_text):
 	"""
@@ -120,10 +126,13 @@ def handle_command(command, channel):
                         response = 'Hmm... There is no active task';
         elif command.startswith(DISTRACT_DONE_COMMAND):
                 filename = DISTRACTFILENAME;
-                distract_index = int(command.replace(DISTRACT_DONE_COMMAND, '', 1));
-                
+                distract_str = command.replace(DISTRACT_DONE_COMMAND, '', 1);
+                distract_index = 0;
+                response = 'Glad you got that out of the way...';
+                #distract_index = int(command.replace(DISTRACT_DONE_COMMAND, '', 1));
+                if(len(distract_str) > 0 and distract_str.isdigit()):
+                        distract_index = int(distract_str);
                 if(len(distract_list) > 0 and distract_index < len(distract_list)):
-                        response = 'Glad you got that out of the way...';
                         with open(filename, 'a') as distract_file:
                                 fstr = "%a, %d %b %Y %H:%M:%S";
                                 gmt = time.localtime();
@@ -213,7 +222,7 @@ def handle_command(command, channel):
                         response = response + \
                                    "Look who's getting distracted:" + '\n';
                 for index, distract_item in enumerate(distract_list):
-                        response = response + '>d' + \
+                        response = response + '>' + \
                                    str(index) + '. ' + \
                                    distract_item + '\n';
         elif command.startswith(READ_ACTIVE_TODO_COMMAND):
@@ -260,6 +269,14 @@ def read_active_todo():
         elif(len(todo_list) > 0):
                 response = response + "The task on deck is: ";
                 response = response + todo_list[0] + '\n';
+
+        if(len(distract_list) > 0):
+                response = response + \
+                           "\n" + "Look who's getting distracted:" + '\n';
+        for index, distract_item in enumerate(distract_list):
+                response = response + '>' + \
+                           str(index) + '. ' + \
+                           distract_item + '\n';
 
         return response;
 
